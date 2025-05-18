@@ -1,0 +1,197 @@
+<!DOCTYPE HTML>
+<html lang="ru" class="notranslate" translate="no">
+<head>
+    <meta charset="utf-8">
+    <meta name="google" content="notranslate"/>
+    <title>P5 player</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+        iframe {
+            border: 0;
+            display: block;
+            height: 100vh;
+            width: 100vw;
+        }
+    </style>
+</head>
+<body>
+
+    <iframe
+        id="runner"
+        title="P5 player"
+        allow="accelerometer; autoplay; camera; encrypted-media; geolocation; gyroscope;
+        hid; microphone; magnetometer; midi; payment; usb; serial; xr-spatial-tracking"
+        allowfullscreen
+    >
+    </iframe>
+
+    <script>
+        const runner = document.getElementById("runner");
+
+        const ourOrigin = window.origin;
+        window.addEventListener(
+            "message",
+            event => {
+                // from child to parent
+                if (!event.data.command && event.origin === ourOrigin) {
+                    window.parent.postMessage(event.data, "*");
+                }
+                // from parent to child
+                else if (event.data.command === "run") {
+                    runner.contentWindow.postMessage(event.data, ourOrigin);
+                    runner.style.visibility = "visible"
+                }
+                else if (event.data.command === "stop") {
+                    // every time assign reference to a different string to refresh content
+                    runner.srcdoc = srcDoc + " ";
+                    runner.style.visibility = "hidden"
+                }
+            }
+        );
+
+        const srcDoc = `
+            <!DOCTYPE HTML>
+            <html lang="ru" class="notranslate" translate="no">
+            <head>
+                <meta charset="utf-8">
+                <meta name="google" content="notranslate"/>
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                    }
+                    canvas {
+                        display: block;
+                    }
+                </style>
+            </head>
+            <body>
+                <div id="loading">Loading...</div>
+                <script type="text/javascript">let _error = window.console.error;<\/script>
+                <script src="p5_1.11.3/p5.min.js" type="text/javascript"><\/script>
+                <script src="skulpt_6/skulpt.min.js" type="text/javascript"><\/script>
+                <script src="skulpt_6/skulpt-stdlib.js" type="text/javascript"><\/script>
+
+                <script>
+                    const loading = document.getElementById("loading");
+                    loading.style.display = "none";
+
+                    const ourOrigin = window.origin;
+                    window.addEventListener(
+                        "message",
+                        event => {
+                            if (event.data.command == "run") {
+                                window.parent.postMessage({type: "started"}, ourOrigin);
+                                run(event.data.code);
+                            }
+                        }
+                    );
+
+                    // to catch error in file load promises
+                    window.console.error = function (...args) {
+                        _error.apply(window.console, args);
+
+                        const isError = args.length > 0 && (args[0] instanceof Error);
+                        const isErrorEvent = args.length > 0 && (args[0] instanceof Event) && (args[0].type === "error");
+
+                        if (isError || isErrorEvent) {
+                            window.parent.postMessage(
+                                {
+                                    type: "log",
+                                    text: "A file was not loaded. Probably, it does not exist\\n",
+                                },
+                                ourOrigin);
+                        }
+                    };
+
+                    window.parent.postMessage({type: "ready"}, ourOrigin);
+
+                    function stop() {
+                        Sk.p5?.kill?.();
+                    }
+
+                    function run(prog) {
+                        stop();
+
+                        let lineWritten = 0;
+                        let isWarningWritten = false;
+
+                        Sk.configure({
+                            output: text => {
+                                if (isWarningWritten) return;
+
+                                if (lineWritten > 10000) {
+                                    window.parent.postMessage({type: "log", text: "A lot of output. Stopped printing.\\n"}, ourOrigin);
+                                    isWarningWritten = true;
+                                } else {
+                                    window.parent.postMessage({type: "log", text: text}, ourOrigin);
+                                    lineWritten++;
+                                }
+                            },
+                            inputfunTakesPrompt: true,
+                            inputfun: prompt => {
+                                const result = window.prompt(prompt);
+                                // So that input will not cause a time limit error
+                                Sk.execStart = new Date();
+                                if (result !== null) return result;
+
+                                // electron doesn't support window.prompt
+                                if (isElectron()) throw new Error("Error: input is not support in StepInDev Desktop for p5 module");
+                                // Input was canceled. So, throw an exception which will lead to the program stop
+                                throw new Error("Error: Input was canceled");
+                            },
+                            __future__: Sk.python3,
+                            debugging: false,
+                            execLimit: 2500,
+                            adaptiveJsCallbacks: true
+                        });
+
+                        Sk.p5 = {
+                            node: document.getElementsByTagName("body").item(0)
+                        }
+
+                        Sk.uncaughtException = err => {
+                            window.parent.postMessage(getErrorMessage(err), ourOrigin);
+                            stop();
+                        };
+
+                        Sk.misceval
+                            .asyncToPromise(() => Sk.importMainWithBody('<stdin>', false, prog, false))
+                            .then(() => {
+                                if (Sk.p5.getInstance && Sk.p5.getInstance() === null) {
+                                    Sk.p5.createSketch();
+                                }
+                            })
+                            .catch(err => {
+                                window.parent.postMessage(getErrorMessage(err), ourOrigin);
+                                stop();
+                            })
+                    }
+
+                    function getErrorMessage(err) {
+                        return {
+                            type: "error",
+                            error: {
+                                message: err.nativeError ? err.nativeError.message : err.toString(),
+                                lineno: err.traceback ? err.traceback[0]?.lineno : 1,
+                                colno: err.traceback ? err.traceback[0]?.colno : 1
+                            }
+                        };
+                    }
+
+                    function isElectron() {
+                        return  typeof navigator === 'object' && typeof navigator.userAgent === 'string' && navigator.userAgent.indexOf('Electron') >= 0;
+                    }
+                <\/script>
+            </body>
+            </html>
+        `
+
+        runner.srcdoc = srcDoc;
+    </script>
+
+</body>
+</html>
