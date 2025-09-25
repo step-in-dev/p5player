@@ -3,3 +3,6 @@
 
 /*/index_2
   Cache-Control: public, max-age=300, must-revalidate
+
+/*
+  Cache-Control: public, max-age=15552000, must-revalidate
