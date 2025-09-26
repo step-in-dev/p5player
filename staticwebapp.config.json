@@ -5,6 +5,14 @@
       "headers": {
         "Cache-Control": "public, max-age=15552000, must-revalidate"
       }
+    },
+    {
+      "route": "*.html",
+      "allowedRoles": [
+        "public",
+        "max-age=300",
+        "must-revalidate"
+      ]
     }
   ]
 }
