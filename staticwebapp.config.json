@@ -8,11 +8,9 @@
     },
     {
       "route": "*.html",
-      "allowedRoles": [
-        "public",
-        "max-age=300",
-        "must-revalidate"
-      ]
+      "headers": {
+        "Cache-Control": "public,max-age=300,must-revalidate"
+      }
     }
   ]
 }
